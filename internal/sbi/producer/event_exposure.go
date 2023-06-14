@@ -121,6 +121,31 @@ func CreateAMFEventSubscriptionProcedure(createEventSubscription models.AmfCreat
 	createdEventSubscription.Subscription = subscription
 	createdEventSubscription.SubscriptionId = newSubscriptionID
 
+	for _, event := range *subscription.EventList {
+		if event.Type == models.AmfEventType_UES_IN_AREA_REPORT {
+
+			var numUes int32 = 0
+
+			amfSelf.UePool.Range(func(key, value interface{}) bool {
+				numUes += 1
+				return true
+			})
+
+			timeStamp := time.Now()
+
+			report := models.AmfEventReport{
+				Type: models.AmfEventType_UES_IN_AREA_REPORT,
+				State: &models.AmfEventState{
+					Active: false,
+				},
+				TimeStamp:   &timeStamp,
+				NumberOfUes: numUes,
+			}
+
+			reportlist = append(reportlist, report)
+		}
+	}
+
 	// for immediate use
 	if subscription.AnyUE {
 		amfSelf.UePool.Range(func(key, value interface{}) bool {

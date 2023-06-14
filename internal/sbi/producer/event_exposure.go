@@ -124,7 +124,7 @@ func CreateAMFEventSubscriptionProcedure(createEventSubscription models.AmfCreat
 	for _, event := range *subscription.EventList {
 		if event.Type == models.AmfEventType_UES_IN_AREA_REPORT {
 
-			var numUes int32 = 0
+			var numUes int32 = 100
 
 			amfSelf.UePool.Range(func(key, value interface{}) bool {
 				numUes += 1

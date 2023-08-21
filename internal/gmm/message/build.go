@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"time"
 
 	"github.com/mitchellh/mapstructure"
 
@@ -110,7 +111,7 @@ func BuildIdentityRequest(ue *context.AmfUe, accessType models.AccessType, typeO
 	return nas_security.Encode(ue, m, accessType)
 }
 
-func BuildAuthenticationRequest(ue *context.AmfUe) ([]byte, error) {
+func BuildAuthenticationRequest(ue *context.AmfUe, accessType models.AccessType) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeAuthenticationRequest)
@@ -165,7 +166,11 @@ func BuildAuthenticationRequest(ue *context.AmfUe) ([]byte, error) {
 
 	m.GmmMessage.AuthenticationRequest = authenticationRequest
 
-	return m.PlainNasEncode()
+	m.SecurityHeader = nas.SecurityHeader{
+		ProtocolDiscriminator: nasMessage.Epd5GSMobilityManagementMessage,
+		SecurityHeaderType:    nas.SecurityHeaderTypeIntegrityProtectedAndCiphered,
+	}
+	return nas_security.Encode(ue, m, accessType)
 }
 
 func BuildServiceAccept(ue *context.AmfUe, accessType models.AccessType, pDUSessionStatus *[16]bool,
@@ -209,7 +214,7 @@ func BuildServiceAccept(ue *context.AmfUe, accessType models.AccessType, pDUSess
 	return nas_security.Encode(ue, m, accessType)
 }
 
-func BuildAuthenticationReject(ue *context.AmfUe, eapMsg string) ([]byte, error) {
+func BuildAuthenticationReject(ue *context.AmfUe, accessType models.AccessType, eapMsg string) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeAuthenticationReject)
@@ -232,10 +237,15 @@ func BuildAuthenticationReject(ue *context.AmfUe, eapMsg string) ([]byte, error)
 
 	m.GmmMessage.AuthenticationReject = authenticationReject
 
-	return m.PlainNasEncode()
+	m.SecurityHeader = nas.SecurityHeader{
+		ProtocolDiscriminator: nasMessage.Epd5GSMobilityManagementMessage,
+		SecurityHeaderType:    nas.SecurityHeaderTypeIntegrityProtectedAndCiphered,
+	}
+	return nas_security.Encode(ue, m, accessType)
 }
 
-func BuildAuthenticationResult(ue *context.AmfUe, eapSuccess bool, eapMsg string) ([]byte, error) {
+func BuildAuthenticationResult(ue *context.AmfUe, accessType models.AccessType, eapSuccess bool, eapMsg string,
+) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeAuthenticationResult)
@@ -261,11 +271,16 @@ func BuildAuthenticationResult(ue *context.AmfUe, eapSuccess bool, eapMsg string
 
 	m.GmmMessage.AuthenticationResult = authenticationResult
 
-	return m.PlainNasEncode()
+	m.SecurityHeader = nas.SecurityHeader{
+		ProtocolDiscriminator: nasMessage.Epd5GSMobilityManagementMessage,
+		SecurityHeaderType:    nas.SecurityHeaderTypeIntegrityProtectedAndCiphered,
+	}
+	return nas_security.Encode(ue, m, accessType)
 }
 
 // T3346 Timer and EAP are not Supported
-func BuildServiceReject(pDUSessionStatus *[16]bool, cause uint8) ([]byte, error) {
+func BuildServiceReject(ue *context.AmfUe, accessType models.AccessType, pDUSessionStatus *[16]bool, cause uint8,
+) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeServiceReject)
@@ -284,11 +299,16 @@ func BuildServiceReject(pDUSessionStatus *[16]bool, cause uint8) ([]byte, error)
 
 	m.GmmMessage.ServiceReject = serviceReject
 
-	return m.PlainNasEncode()
+	m.SecurityHeader = nas.SecurityHeader{
+		ProtocolDiscriminator: nasMessage.Epd5GSMobilityManagementMessage,
+		SecurityHeaderType:    nas.SecurityHeaderTypeIntegrityProtectedAndCiphered,
+	}
+	return nas_security.Encode(ue, m, accessType)
 }
 
 // T3346 timer are not supported
-func BuildRegistrationReject(ue *context.AmfUe, cause5GMM uint8, eapMessage string) ([]byte, error) {
+func BuildRegistrationReject(ue *context.AmfUe, accessType models.AccessType, cause5GMM uint8, eapMessage string,
+) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeRegistrationReject)
@@ -323,7 +343,11 @@ func BuildRegistrationReject(ue *context.AmfUe, cause5GMM uint8, eapMessage stri
 
 	m.GmmMessage.RegistrationReject = registrationReject
 
-	return m.PlainNasEncode()
+	m.SecurityHeader = nas.SecurityHeader{
+		ProtocolDiscriminator: nasMessage.Epd5GSMobilityManagementMessage,
+		SecurityHeaderType:    nas.SecurityHeaderTypeIntegrityProtectedAndCiphered,
+	}
+	return nas_security.Encode(ue, m, accessType)
 }
 
 // TS 24.501 8.2.25
@@ -433,23 +457,24 @@ func BuildDeregistrationRequest(ue *context.RanUe, accessType uint8, reRegistrat
 	}
 	m.GmmMessage.DeregistrationRequestUETerminatedDeregistration = deregistrationRequest
 
-	if ue != nil && ue.AmfUe != nil {
-		m.SecurityHeader = nas.SecurityHeader{
-			ProtocolDiscriminator: nasMessage.Epd5GSMobilityManagementMessage,
-			SecurityHeaderType:    nas.SecurityHeaderTypeIntegrityProtectedAndCiphered,
-		}
-		var anType models.AccessType
-		if accessType == 0x01 {
-			anType = models.AccessType__3_GPP_ACCESS
-		} else if accessType == 0x02 {
-			anType = models.AccessType_NON_3_GPP_ACCESS
-		}
-		return nas_security.Encode(ue.AmfUe, m, anType)
+	m.SecurityHeader = nas.SecurityHeader{
+		ProtocolDiscriminator: nasMessage.Epd5GSMobilityManagementMessage,
+		SecurityHeaderType:    nas.SecurityHeaderTypeIntegrityProtectedAndCiphered,
 	}
-	return m.PlainNasEncode()
+	var anType models.AccessType
+	if accessType == 0x01 {
+		anType = models.AccessType__3_GPP_ACCESS
+	} else if accessType == 0x02 {
+		anType = models.AccessType_NON_3_GPP_ACCESS
+	}
+	if ue != nil {
+		return nas_security.Encode(ue.AmfUe, m, anType)
+	} else {
+		return nas_security.Encode(nil, m, anType)
+	}
 }
 
-func BuildDeregistrationAccept() ([]byte, error) {
+func BuildDeregistrationAccept(ue *context.AmfUe, accessType models.AccessType) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeDeregistrationAcceptUEOriginatingDeregistration)
@@ -462,7 +487,11 @@ func BuildDeregistrationAccept() ([]byte, error) {
 
 	m.GmmMessage.DeregistrationAcceptUEOriginatingDeregistration = deregistrationAccept
 
-	return m.PlainNasEncode()
+	m.SecurityHeader = nas.SecurityHeader{
+		ProtocolDiscriminator: nasMessage.Epd5GSMobilityManagementMessage,
+		SecurityHeaderType:    nas.SecurityHeaderTypeIntegrityProtectedAndCiphered,
+	}
+	return nas_security.Encode(ue, m, accessType)
 }
 
 func BuildRegistrationAccept(
@@ -677,7 +706,7 @@ func includeConfiguredNssaiCheck(ue *context.AmfUe) bool {
 	return false
 }
 
-func BuildStatus5GMM(cause uint8) ([]byte, error) {
+func BuildStatus5GMM(ue *context.AmfUe, accessType models.AccessType, cause uint8) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeStatus5GMM)
@@ -690,7 +719,11 @@ func BuildStatus5GMM(cause uint8) ([]byte, error) {
 
 	m.GmmMessage.Status5GMM = status5GMM
 
-	return m.PlainNasEncode()
+	m.SecurityHeader = nas.SecurityHeader{
+		ProtocolDiscriminator: nasMessage.Epd5GSMobilityManagementMessage,
+		SecurityHeaderType:    nas.SecurityHeaderTypeIntegrityProtectedAndCiphered,
+	}
+	return nas_security.Encode(ue, m, accessType)
 }
 
 func BuildConfigurationUpdateCommand(ue *context.AmfUe, anType models.AccessType,
@@ -765,7 +798,6 @@ func BuildConfigurationUpdateCommand(ue *context.AmfUe, anType models.AccessType
 		}
 	}
 
-	// TODO: UniversalTimeAndLocalTimeZone
 	if anType == models.AccessType__3_GPP_ACCESS && ue.AmPolicyAssociation != nil &&
 		ue.AmPolicyAssociation.ServAreaRes != nil {
 		configurationUpdateCommand.ServiceAreaList = nasType.
@@ -789,16 +821,21 @@ func BuildConfigurationUpdateCommand(ue *context.AmfUe, anType models.AccessType
 		configurationUpdateCommand.ShortNameForNetwork.SetIei(nasMessage.ConfigurationUpdateCommandShortNameForNetworkType)
 	}
 
-	if ue.TimeZone != "" {
-		localTimeZone := nasConvert.LocalTimeZoneToNas(ue.TimeZone)
+	now := time.Now()
+	universalTimeAndLocalTimeZone := nasConvert.EncodeUniversalTimeAndLocalTimeZoneToNas(now)
+	universalTimeAndLocalTimeZone.SetIei(nasMessage.ConfigurationUpdateCommandUniversalTimeAndLocalTimeZoneType)
+	configurationUpdateCommand.UniversalTimeAndLocalTimeZone = &universalTimeAndLocalTimeZone
+
+	if ue.TimeZone != amfSelf.TimeZone {
+		ue.TimeZone = amfSelf.TimeZone
+
+		localTimeZone := nasConvert.EncodeLocalTimeZoneToNas(ue.TimeZone)
 		localTimeZone.SetIei(nasMessage.ConfigurationUpdateCommandLocalTimeZoneType)
 		configurationUpdateCommand.LocalTimeZone = nasType.
 			NewLocalTimeZone(nasMessage.ConfigurationUpdateCommandLocalTimeZoneType)
 		configurationUpdateCommand.LocalTimeZone = &localTimeZone
-	}
 
-	if ue.TimeZone != "" {
-		daylightSavingTime := nasConvert.DaylightSavingTimeToNas(ue.TimeZone)
+		daylightSavingTime := nasConvert.EncodeDaylightSavingTimeToNas(ue.TimeZone)
 		daylightSavingTime.SetIei(nasMessage.ConfigurationUpdateCommandNetworkDaylightSavingTimeType)
 		configurationUpdateCommand.NetworkDaylightSavingTime = nasType.
 			NewNetworkDaylightSavingTime(nasMessage.ConfigurationUpdateCommandNetworkDaylightSavingTimeType)
@@ -819,5 +856,9 @@ func BuildConfigurationUpdateCommand(ue *context.AmfUe, anType models.AccessType
 
 	m.GmmMessage.ConfigurationUpdateCommand = configurationUpdateCommand
 
-	return m.PlainNasEncode()
+	m.SecurityHeader = nas.SecurityHeader{
+		ProtocolDiscriminator: nasMessage.Epd5GSMobilityManagementMessage,
+		SecurityHeaderType:    nas.SecurityHeaderTypeIntegrityProtectedAndCiphered,
+	}
+	return nas_security.Encode(ue, m, anType)
 }
